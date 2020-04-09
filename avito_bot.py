@@ -364,13 +364,13 @@ def run_monitoring():
 		try:
 			monitor_avito(bot)
 			monitor_yola(bot)
+			time.sleep(config.SLEEP_TIME)
 			restart_func()
 		except Exception as e:
 			print(e)
 			raise e
 			continue
-		time.sleep(config.SLEEP_TIME)
-
+		
 
 def run_bot():
 	"""

@@ -364,6 +364,7 @@ def run_monitoring():
 		try:
 			monitor_avito(bot)
 			monitor_yola(bot)
+			restart_func()
 		except Exception as e:
 			print(e)
 			raise e

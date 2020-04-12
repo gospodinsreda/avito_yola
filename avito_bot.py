@@ -364,13 +364,14 @@ def run_monitoring():
 		try:
 			monitor_avito(bot)
 			monitor_yola(bot)
-			time.sleep(config.SLEEP_TIME)
-			restart_func()
+			if config.WINDOWS == False:
+				os.system('sudo cp -rf database.db /var/www/html/files/')
 		except Exception as e:
 			print(e)
 			raise e
 			continue
-		
+		time.sleep(config.SLEEP_TIME)
+
 
 def run_bot():
 	"""
@@ -392,6 +393,16 @@ def main():
 	th2.start()
 	th1.join()
 	th2.join()
+	while True:
+		try:
+			if th1.isAlive() == False:
+				th1 = threading.Thread(target=run_monitoring)
+				th1.start()
+				th1.join()
+			time.sleep(3)
+		except Exception as e:
+			print(e)
+			continue
 
 
 if __name__ == '__main__':

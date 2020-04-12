@@ -100,8 +100,12 @@ class Avito:
                 with open(fname, 'wb') as f:
                     f.write(base64.decodestring(bytes(base64photo, 'utf8')))
                 phone = pytesseract.image_to_string(Image.open(fname))
+                # print(len(phone))
+                # time.sleep(10)
+                while len(phone) != 15:
+                    phone = pytesseract.image_to_string(Image.open(fname))
                 os.remove(fname)
-                return phone.replace('-', '').replace(' ', '')
+                return '+' + phone.replace('-', '').replace(' ', '')
 
         except Exception as e:
                 print(e)
@@ -184,6 +188,7 @@ def monitor_avito(bot):
                 print(phone)
                 if phone:
                     for msg in sended_msg_ids:
+                        phone = phone.replace('+8', '+7')
                         new_text = '{!s}\n\nТелефон: {!s}'.format(text, phone)
                         keyboard = types.InlineKeyboardMarkup()
                         keyboard.add(types.InlineKeyboardButton(

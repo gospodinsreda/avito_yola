@@ -7,6 +7,7 @@ from sql_driver import DataBase
 
 
 
+
 class Yola:
 	"""
 	Класс Yola

